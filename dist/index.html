@@ -1,0 +1,153 @@
+<!doctype html>
+<!-- Copyright (c) 2026 DYLO Gaming LLC. All rights reserved. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Rotation Lock</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body data-state="unlocked">
+  <main class="app">
+    <button class="donate-btn" id="donateBtn" type="button" title="Support development on Ko-fi">
+      <span class="donate-heart" aria-hidden="true">♥</span>
+      <span>Donate</span>
+    </button>
+    <header class="hero">
+      <h1>Rotation Lock</h1>
+      <p class="sub">Force laptop mode. No more accidental tablet rotations.</p>
+    </header>
+
+    <section class="lock-card">
+      <canvas class="sky" id="sky" aria-hidden="true"></canvas>
+      <div class="lock-stage" id="lockStage">
+        <!-- Twinkles behind the lock -->
+        <canvas class="twinkles twinkles-back" id="twinklesBack"></canvas>
+        <!-- Corner hero shine (locked state) -->
+        <div class="corner-shine" id="cornerShine" aria-hidden="true"></div>
+        <!-- Star burst layer (impact) -->
+        <div class="stars" id="stars"></div>
+
+        <svg class="lock-svg" viewBox="0 0 120 160" aria-hidden="true">
+          <defs>
+            <linearGradient id="gradSilver" x1="0" y1="1" x2="0" y2="0">
+              <stop offset="0%"  stop-color="#4e5364"/>
+              <stop offset="55%" stop-color="#838a9d"/>
+              <stop offset="100%" stop-color="#b4bccd"/>
+            </linearGradient>
+            <linearGradient id="gradGold" x1="0" y1="1" x2="0" y2="0">
+              <stop offset="0%"   stop-color="#8a5e1d"/>
+              <stop offset="40%"  stop-color="#d19a38"/>
+              <stop offset="72%"  stop-color="#f2cc52"/>
+              <stop offset="100%" stop-color="#ffe9a0"/>
+            </linearGradient>
+            <clipPath id="fillClip">
+              <path id="fillPath" d="M 0 160 L 120 160 L 120 160 L 0 160 Z"/>
+            </clipPath>
+          </defs>
+
+          <g class="lock-group" id="lockGroup">
+            <!-- Silver base: rendered always. Body gets hidden under gold when filling. -->
+            <g class="layer layer-silver">
+              <path class="shackle" id="shackle"
+                    d="M 36 78 L 36 46 A 24 24 0 0 1 84 46 L 84 78"
+                    fill="none" stroke="url(#gradSilver)" stroke-width="11"
+                    stroke-linecap="round" stroke-linejoin="round"/>
+              <rect class="body" x="22" y="70" width="76" height="78" rx="12" fill="url(#gradSilver)"/>
+              <rect class="body-highlight" x="25" y="73" width="70" height="22" rx="9" fill="rgba(255,255,255,0.18)"/>
+              <circle class="keyhole-hole" cx="60" cy="98" r="6" fill="#12182a"/>
+              <rect    class="keyhole-slot" x="57" y="98" width="6" height="22" rx="2" fill="#12182a"/>
+            </g>
+
+            <!-- Gold overlay: body only (shackle stays silver). Clipped by fill rect. -->
+            <g class="layer layer-gold" clip-path="url(#fillClip)">
+              <rect class="body" x="22" y="70" width="76" height="78" rx="12" fill="url(#gradGold)"/>
+              <rect class="body-highlight" x="25" y="73" width="70" height="22" rx="9" fill="rgba(255,255,255,0.28)"/>
+              <circle class="keyhole-hole" cx="60" cy="98" r="6" fill="#2a1e07"/>
+              <rect    class="keyhole-slot" x="57" y="98" width="6" height="22" rx="2" fill="#2a1e07"/>
+            </g>
+          </g>
+        </svg>
+
+        <!-- Twinkles in front of the lock -->
+        <canvas class="twinkles twinkles-front" id="twinklesFront"></canvas>
+      </div>
+
+      <button class="primary big-toggle" id="toggleBtn" type="button">
+        <span class="toggle-status" id="toggleStatus">Unlocked</span>
+        <span class="toggle-action" id="toggleAction">Tap to lock rotation</span>
+      </button>
+    </section>
+
+    <section class="card sensor-card">
+      <div class="sensor-head">
+        <span class="field-label">Orientation sensor</span>
+        <button class="ghost" id="refreshBtn" type="button">Refresh</button>
+      </div>
+      <div class="sensor-picker" id="sensorPicker">
+        <button class="sensor-trigger" id="sensorTrigger" type="button" aria-haspopup="listbox" aria-expanded="false">
+          <span class="sensor-trigger-text" id="sensorTriggerText"></span>
+        </button>
+        <div class="sensor-menu" id="sensorMenu" role="listbox"></div>
+      </div>
+      <select id="sensorSelect" class="native-select" aria-hidden="true" tabindex="-1"></select>
+    </section>
+
+    <section class="card">
+      <label class="row">
+        <span>
+          <span class="row-title">Run Rotation Lock at login</span>
+          <span class="row-sub">App auto-launches silently when you sign in to Windows.</span>
+        </span>
+        <input type="checkbox" id="autostartChk" class="switch" />
+      </label>
+      <label class="row">
+        <span>
+          <span class="row-title">Auto-lock when app starts</span>
+          <span class="row-sub">Apply the rotation lock immediately, no clicking needed.</span>
+        </span>
+        <input type="checkbox" id="startLockedChk" class="switch" />
+      </label>
+    </section>
+
+    <footer class="footer">
+      <span class="copyright">&copy; 2026 DYLO Gaming LLC. All rights reserved.</span>
+      <span class="msg" id="msg" aria-live="polite">
+        <span class="msg-icon" aria-hidden="true"></span>
+        <span class="msg-text"></span>
+      </span>
+    </footer>
+  </main>
+
+  <div class="about-overlay" id="aboutOverlay">
+    <div class="about-card">
+      <div class="about-logo" aria-hidden="true"></div>
+      <h2>Rotation Lock</h2>
+      <p class="about-version">Version 0.1.0</p>
+      <p class="about-desc">Force laptop mode on convertible Windows devices.<br/>Persists across sleep, wake, and reboot.</p>
+      <p class="about-copy">&copy; 2026 DYLO Gaming LLC. All rights reserved.</p>
+      <button class="primary" id="aboutClose" type="button">Close</button>
+    </div>
+  </div>
+
+  <div class="about-overlay close-overlay" id="closeOverlay">
+    <div class="about-card close-card">
+      <h2>Close Rotation Lock?</h2>
+      <p class="about-desc">Choose what to do with the app.</p>
+      <div class="close-actions">
+        <button class="primary" id="closeMinimizeBtn" type="button">
+          <span class="close-action-title">Minimize to tray</span>
+          <span class="close-action-sub">Keep running in the background</span>
+        </button>
+        <button class="primary close-quit" id="closeQuitBtn" type="button">
+          <span class="close-action-title">Quit completely</span>
+          <span class="close-action-sub">Close the window and tray icon</span>
+        </button>
+        <button class="ghost close-cancel" id="closeCancelBtn" type="button">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="main.js"></script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+# Rust / Tauri build artifacts
+/src-tauri/target/
+/src-tauri/gen/
+
+# Local distribution folders (binaries shipped via GitHub Releases, not git)
+/Rotation Lock Desktop/
+/GitHub Release/
+
+# Editor / IDE
+/.vscode/
+/.idea/
+*.swp
+*.swo
+
+# Claude Code local settings
+/.claude/
+
+# Windows / OS artifacts
+Thumbs.db
+Desktop.ini
+ehthumbs.db
+$RECYCLE.BIN/
+
+# Logs
+*.log
