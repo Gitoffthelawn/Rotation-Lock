@@ -20,6 +20,57 @@ fn pnputil(args: &[&str]) -> Result<(i32, String)> {
     Ok((code, text))
 }
 
+fn reg_cmd(args: &[&str]) -> Result<(i32, String)> {
+    let mut cmd = Command::new("reg.exe");
+    cmd.args(args);
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    let out = cmd.output()?;
+    let code = out.status.code().unwrap_or(-1);
+    let mut text = String::from_utf8_lossy(&out.stdout).into_owned();
+    text.push_str(&String::from_utf8_lossy(&out.stderr));
+    Ok((code, text))
+}
+
+#[cfg(windows)]
+fn broadcast_setting_change(name: &str) {
+    use windows::Win32::Foundation::{LPARAM, WPARAM};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        SendMessageTimeoutW, HWND_BROADCAST, SMTO_ABORTIFHUNG, WM_SETTINGCHANGE,
+    };
+    let wide: Vec<u16> = name.encode_utf16().chain(std::iter::once(0)).collect();
+    unsafe {
+        SendMessageTimeoutW(
+            HWND_BROADCAST,
+            WM_SETTINGCHANGE,
+            WPARAM(0),
+            LPARAM(wide.as_ptr() as isize),
+            SMTO_ABORTIFHUNG,
+            5000,
+            None,
+        );
+    }
+}
+
+#[cfg(not(windows))]
+fn broadcast_setting_change(_name: &str) {}
+
+fn force_laptop_chassis_state() -> Result<()> {
+    let (code, out) = reg_cmd(&[
+        "add",
+        r"HKLM\SYSTEM\CurrentControlSet\Control\PriorityControl",
+        "/v", "ConvertibleSlateMode",
+        "/t", "REG_DWORD",
+        "/d", "1",
+        "/f",
+    ])?;
+    if code != 0 {
+        return Err(anyhow!("reg add ConvertibleSlateMode failed: {out}"));
+    }
+    broadcast_setting_change("ConvertibleSlateMode");
+    Ok(())
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SensorInfo {
     pub instance_id: String,
@@ -128,6 +179,7 @@ pub fn lock(instance_id: &str) -> Result<String> {
     // Fall back to remove-device
     let (code2, out2) = pnputil(&["/remove-device", instance_id])?;
     if code2 == 0 {
+        force_laptop_chassis_state()?;
         return Ok(format!("remove-device ok\n{out2}"));
     }
     Err(anyhow!("pnputil failed. first: {out}\nfallback: {out2}"))
