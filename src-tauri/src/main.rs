@@ -284,26 +284,19 @@ fn main() {
                 &PredefinedMenuItem::separator(&handle)?,
                 &MenuItem::with_id(&handle, "menu-quit", "Quit", true, Some("CmdOrCtrl+Q"))?,
             ])?;
-            let edit_menu = Submenu::with_items(&handle, "&Edit", true, &[
-                &PredefinedMenuItem::undo(&handle, None)?,
-                &PredefinedMenuItem::redo(&handle, None)?,
-                &PredefinedMenuItem::separator(&handle)?,
-                &PredefinedMenuItem::cut(&handle, None)?,
-                &PredefinedMenuItem::copy(&handle, None)?,
-                &PredefinedMenuItem::paste(&handle, None)?,
-                &PredefinedMenuItem::select_all(&handle, None)?,
-            ])?;
             let help_menu = Submenu::with_items(&handle, "&Help", true, &[
                 &MenuItem::with_id(&handle, "menu-about", "About Rotation Lock", true, None::<&str>)?,
             ])?;
-            let app_menu = Menu::with_items(&handle, &[&file_menu, &edit_menu, &help_menu])?;
+            let app_menu = Menu::with_items(&handle, &[&file_menu, &help_menu])?;
             if let Some(win) = app.get_webview_window("main") {
                 let _ = win.set_menu(app_menu);
                 win.on_menu_event(|w, event| match event.id.as_ref() {
                     "menu-hide" => { let _ = w.hide(); }
                     "menu-quit" => quit_app(w.app_handle()),
                     "menu-about" => {
-                        let _ = w.app_handle().emit("show-about", ());
+                        if let Some(wv) = w.app_handle().get_webview_window("main") {
+                            let _ = wv.eval("var o=document.getElementById('aboutOverlay'); if(o) o.dataset.open='true';");
+                        }
                     }
                     _ => {}
                 });

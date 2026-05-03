@@ -672,12 +672,17 @@ async function init() {
   }).catch((err) => console.warn("state listener unavailable", err));
 
   const overlay = document.getElementById("aboutOverlay");
-  document.getElementById("aboutClose").addEventListener("click", () => {
-    overlay.dataset.open = "false";
-  });
-  overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.dataset.open = "false"; });
+  const closeAbout = () => {
+    if (overlay.dataset.open !== "true") return;
+    overlay.dataset.open = "closing";
+    setTimeout(() => {
+      if (overlay.dataset.open === "closing") overlay.dataset.open = "false";
+    }, 200);
+  };
+  document.getElementById("aboutClose").addEventListener("click", closeAbout);
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) closeAbout(); });
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && overlay.dataset.open === "true") overlay.dataset.open = "false";
+    if (e.key === "Escape" && overlay.dataset.open === "true") closeAbout();
   });
   listen("show-about", () => { overlay.dataset.open = "true"; })
     .catch((err) => console.warn("about listener unavailable", err));
