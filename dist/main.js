@@ -522,7 +522,7 @@ async function loadSensors() {
   for (const s of sensors) {
     const opt = document.createElement("option");
     opt.value = s.instance_id;
-    opt.textContent = `${s.friendly_name}  —  ${s.instance_id}`;
+    opt.textContent = `${s.friendly_name}  :  ${s.instance_id}`;
     els.sensorSelect.appendChild(opt);
   }
   if (cfg?.selected_sensor && sensors.some(s => s.instance_id === cfg.selected_sensor)) {
@@ -544,7 +544,7 @@ function sortSensors() {
 }
 
 function sensorLabel(s) {
-  return s ? `${s.friendly_name} — ${s.instance_id}` : "No sensors found";
+  return s ? `${s.friendly_name} : ${s.instance_id}` : "No sensors found";
 }
 
 function selectedSensor() {
@@ -622,7 +622,7 @@ function closeSensorMenu() {
 async function init() {
   cfg = await invoke("cmd_get_config");
   const elevated = await invoke("cmd_is_elevated");
-  if (!elevated) showMsg("App is not elevated — lock won't work without admin rights.", "error");
+  if (!elevated) showMsg("App is not elevated: lock won't work without admin rights.", "error");
 
   // Restore visual state from persisted config
   if (cfg.locked) {

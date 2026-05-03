@@ -246,9 +246,14 @@ fn main() {
         ])
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
-                // Don't actually close — defer to the in-app modal.
                 api.prevent_close();
-                let _ = window.app_handle().emit("close-requested", ());
+                if let Some(wv) = window.app_handle().get_webview_window("main") {
+                    let _ = wv.eval(
+                        "var o=document.getElementById('closeOverlay'); \
+                         if(o){o.dataset.open='true';\
+                         var b=document.getElementById('closeMinimizeBtn'); if(b) b.focus();}"
+                    );
+                }
             }
         })
         .setup(move |app| {
