@@ -7,7 +7,7 @@
 
 A Windows utility that locks orientation on convertible laptops. No more screen flipping when you tilt the device. Persists across sleep, wake, and reboot.
 
-## Tray icon
+## Taskbar & Tray icon
 
 <table>
 <tr>
