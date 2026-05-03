@@ -5,7 +5,7 @@
   <img src="images/locked.png" width="320" alt="Locked state" />
 </p>
 
-A Windows utility that locks orientation on convertible laptops. No more screen flipping when you tilt the device. Persists across sleep, wake, and reboot.
+A simple desktop & tray application made for laptops that can turn into tablets upon rotation. Whenever I work on my laptop in bed, sometimes I'll lie down sideways, or it falls to the side, and it causes it to do a full rotation and go into tablet mode, which is extremely annoying and has no way to disable aside from disabling the sensor in Device Manager. This program solves that.
 
 ## Taskbar & Tray icon
 
