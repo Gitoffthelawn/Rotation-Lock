@@ -191,7 +191,7 @@ function New-IcoFromBitmaps([hashtable]$bmps, $icoPath) {
     [System.IO.File]::WriteAllBytes($icoPath, $out.ToArray())
 }
 
-$dir = 'C:\Users\Manue\Documents\Claude\rotation-lock\src-tauri\icons'
+$dir = Join-Path $PSScriptRoot 'src-tauri\icons'
 New-Item -ItemType Directory -Force -Path $dir | Out-Null
 
 # Runtime RGBA (64x64) for window and tray
