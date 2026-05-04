@@ -25,7 +25,9 @@ The same icon shows in the system tray and on the taskbar. Left-click to toggle,
 ## Install
 
 Download `Rotation Lock.exe` from [Releases](https://github.com/dylogaming/Rotation-Lock/releases). 
+
 Run it. UAC prompts for elevation (needed to access the sensor driver). 
+
 Single self-contained `.exe`, no installer.
 
 ## Build from source
