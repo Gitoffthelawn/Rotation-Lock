@@ -55,7 +55,7 @@ fn broadcast_setting_change(name: &str) {
 #[cfg(not(windows))]
 fn broadcast_setting_change(_name: &str) {}
 
-fn force_laptop_chassis_state() -> Result<()> {
+pub fn force_laptop_chassis_state() -> Result<()> {
     let (code, out) = reg_cmd(&[
         "add",
         r"HKLM\SYSTEM\CurrentControlSet\Control\PriorityControl",
@@ -174,6 +174,7 @@ pub fn lock(instance_id: &str) -> Result<String> {
     // Try disable-device first (cleaner if allowed)
     let (code, out) = pnputil(&["/disable-device", instance_id])?;
     if code == 0 && !out.to_ascii_lowercase().contains("failed") {
+        force_laptop_chassis_state()?;
         return Ok(format!("disable-device ok\n{out}"));
     }
     // Fall back to remove-device

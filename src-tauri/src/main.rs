@@ -7,7 +7,7 @@ mod state;
 mod tasksched;
 
 use state::AppState;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::time::{Duration, SystemTime};
 use tauri::{
     image::Image,
@@ -27,7 +27,7 @@ struct StateUpdate {
     message: Option<String>,
 }
 
-const RESUME_REAPPLY_AFTER: Duration = Duration::from_secs(5 * 60);
+const RESUME_REAPPLY_AFTER: Duration = Duration::from_secs(20);
 const RESUME_DEVICE_SETTLE: Duration = Duration::from_secs(5);
 
 fn reapply_lock_if_configured(app: &AppHandle, state: &Arc<AppState>, reason: &str) {
@@ -37,6 +37,13 @@ fn reapply_lock_if_configured(app: &AppHandle, state: &Arc<AppState>, reason: &s
     if !state.config.lock().unwrap().locked {
         return;
     }
+
+    // Write the registry value FIRST so the taskbar layout reverts to laptop mode
+    // immediately, independent of whether the device-removal step succeeds. Covers
+    // the case where the sensor was already gone (lock fails entirely) and the
+    // case where Windows re-enumerated the sensor on wake and it briefly reported
+    // slate before we got here.
+    let _ = sensor::force_laptop_chassis_state();
 
     match sensor::lock(&id) {
         Ok(msg) => {
@@ -61,7 +68,7 @@ fn start_resume_monitor(app: AppHandle, state: Arc<AppState>) {
     std::thread::spawn(move || {
         let mut last_tick = SystemTime::now();
         loop {
-            std::thread::sleep(Duration::from_secs(30));
+            std::thread::sleep(Duration::from_secs(15));
             let now = SystemTime::now();
             let elapsed = now
                 .duration_since(last_tick)
@@ -75,6 +82,65 @@ fn start_resume_monitor(app: AppHandle, state: Arc<AppState>) {
         }
     });
 }
+
+// Power-event hook: fires immediately on wake/resume, no polling.
+// Stored statically so the C callback can reach back into Tauri state.
+static RESUME_HOOK: OnceLock<(AppHandle, Arc<AppState>)> = OnceLock::new();
+
+#[cfg(windows)]
+unsafe extern "system" fn power_resume_callback(
+    _ctx: *const std::ffi::c_void,
+    event_type: u32,
+    _setting: *const std::ffi::c_void,
+) -> u32 {
+    use windows::Win32::UI::WindowsAndMessaging::{PBT_APMRESUMEAUTOMATIC, PBT_APMRESUMESUSPEND};
+    if event_type == PBT_APMRESUMEAUTOMATIC || event_type == PBT_APMRESUMESUSPEND {
+        if let Some((app, state)) = RESUME_HOOK.get() {
+            let app = app.clone();
+            let state = state.clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(RESUME_DEVICE_SETTLE);
+                reapply_lock_if_configured(&app, &state, "wake");
+            });
+        }
+    }
+    0
+}
+
+#[cfg(windows)]
+fn install_resume_hook(app: AppHandle, state: Arc<AppState>) {
+    use windows::Win32::Foundation::HANDLE;
+    use windows::Win32::System::Power::{
+        PowerRegisterSuspendResumeNotification, DEVICE_NOTIFY_SUBSCRIBE_PARAMETERS,
+    };
+    use windows::Win32::UI::WindowsAndMessaging::DEVICE_NOTIFY_CALLBACK;
+
+    if RESUME_HOOK.set((app, state)).is_err() {
+        return;
+    }
+
+    // Leak the params struct: PowerRegisterSuspendResumeNotification holds the
+    // pointer for the lifetime of the registration, which we keep for the
+    // process lifetime.
+    let params: &'static mut DEVICE_NOTIFY_SUBSCRIBE_PARAMETERS =
+        Box::leak(Box::new(DEVICE_NOTIFY_SUBSCRIBE_PARAMETERS {
+            Callback: Some(power_resume_callback),
+            Context: std::ptr::null_mut(),
+        }));
+
+    let mut handle: *mut std::ffi::c_void = std::ptr::null_mut();
+    unsafe {
+        let _ = PowerRegisterSuspendResumeNotification(
+            DEVICE_NOTIFY_CALLBACK,
+            HANDLE(params as *mut _ as *mut std::ffi::c_void),
+            &mut handle,
+        );
+    }
+    // handle is intentionally dropped — registration persists for process lifetime.
+}
+
+#[cfg(not(windows))]
+fn install_resume_hook(_app: AppHandle, _state: Arc<AppState>) {}
 
 #[tauri::command]
 fn cmd_list_sensors() -> Result<Vec<sensor::SensorInfo>, String> {
@@ -332,7 +398,8 @@ fn main() {
                 }
             }
 
-            start_resume_monitor(handle, app_state.clone());
+            start_resume_monitor(handle.clone(), app_state.clone());
+            install_resume_hook(handle, app_state);
             Ok(())
         })
         .run(tauri::generate_context!())
