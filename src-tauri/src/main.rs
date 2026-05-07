@@ -7,6 +7,7 @@ mod state;
 mod tasksched;
 
 use state::AppState;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::time::{Duration, SystemTime};
 use tauri::{
@@ -210,9 +211,24 @@ fn cmd_set_start_locked(state: tauri::State<Arc<AppState>>, value: bool) -> Resu
 #[tauri::command]
 fn cmd_is_elevated() -> bool { elevation::is_elevated() }
 
+// Authoritative visibility flag for the JS-side rAF/CSS gating. Tauri's
+// is_visible() returns true on --tray launch even though the window is
+// hidden, so we track this ourselves on every hide/show path.
+static WINDOW_HIDDEN: AtomicBool = AtomicBool::new(false);
+
+#[tauri::command]
+fn cmd_is_window_visible() -> bool {
+    !WINDOW_HIDDEN.load(Ordering::Relaxed)
+}
+
 #[tauri::command]
 fn cmd_hide_window(window: tauri::Window) -> Result<(), String> {
-    window.hide().map_err(|e| e.to_string())
+    window.hide().map_err(|e| e.to_string())?;
+    WINDOW_HIDDEN.store(true, Ordering::Relaxed);
+    if let Some(wv) = window.app_handle().get_webview_window("main") {
+        let _ = wv.eval("if(window.__rotationLockSetHidden) window.__rotationLockSetHidden(true);");
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -267,6 +283,8 @@ fn show_main_window(app: &AppHandle) {
         let _ = win.show();
         let _ = win.unminimize();
         let _ = win.set_focus();
+        WINDOW_HIDDEN.store(false, Ordering::Relaxed);
+        let _ = win.eval("if(window.__rotationLockSetHidden) window.__rotationLockSetHidden(false);");
     }
 }
 
@@ -309,6 +327,7 @@ fn main() {
             cmd_open_url,
             cmd_hide_window,
             cmd_quit_app,
+            cmd_is_window_visible,
         ])
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
@@ -362,7 +381,13 @@ fn main() {
             if let Some(win) = app.get_webview_window("main") {
                 let _ = win.set_menu(app_menu);
                 win.on_menu_event(|w, event| match event.id.as_ref() {
-                    "menu-hide" => { let _ = w.hide(); }
+                    "menu-hide" => {
+                        let _ = w.hide();
+                        WINDOW_HIDDEN.store(true, Ordering::Relaxed);
+                        if let Some(wv) = w.app_handle().get_webview_window("main") {
+                            let _ = wv.eval("if(window.__rotationLockSetHidden) window.__rotationLockSetHidden(true);");
+                        }
+                    }
                     "menu-quit" => quit_app(w.app_handle()),
                     "menu-about" => {
                         if let Some(wv) = w.app_handle().get_webview_window("main") {
@@ -386,6 +411,8 @@ fn main() {
             if started_from_tray {
                 if let Some(win) = app.get_webview_window("main") {
                     let _ = win.hide();
+                    WINDOW_HIDDEN.store(true, Ordering::Relaxed);
+                    let _ = win.eval("if(window.__rotationLockSetHidden) window.__rotationLockSetHidden(true);");
                 }
                 let cfg = app_state.config.lock().unwrap().clone();
                 if cfg.start_locked {

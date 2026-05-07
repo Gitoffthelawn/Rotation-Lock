@@ -44,12 +44,21 @@ pub fn relaunch_elevated() -> Result<()> {
         .collect();
     let verb: HSTRING = "runas".into();
 
+    // Forward the original CLI args (skipping argv[0]) so flags like --tray
+    // survive the UAC self-elevation hop. Quote each arg defensively.
+    let args: Vec<String> = std::env::args().skip(1)
+        .map(|a| if a.contains(' ') { format!("\"{}\"", a) } else { a })
+        .collect();
+    let args_joined = args.join(" ");
+    let args_w: Vec<u16> = args_joined.encode_utf16().chain(std::iter::once(0)).collect();
+    let params_ptr = if args.is_empty() { PCWSTR::null() } else { PCWSTR(args_w.as_ptr()) };
+
     unsafe {
         ShellExecuteW(
             None,
             PCWSTR(verb.as_ptr()),
             PCWSTR(exe_w.as_ptr()),
-            PCWSTR::null(),
+            params_ptr,
             PCWSTR::null(),
             SW_NORMAL,
         );

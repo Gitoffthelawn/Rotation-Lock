@@ -19,6 +19,15 @@
 
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; overflow: hidden; }
+
+/* When the window is minimized to tray, pause every CSS animation so the
+   WebView2 compositor isn't kept hot. JS stops its rAF loops in parallel. */
+body.app-hidden,
+body.app-hidden *,
+body.app-hidden *::before,
+body.app-hidden *::after {
+  animation-play-state: paused !important;
+}
 body {
   font-family: -apple-system, "Segoe UI", "SF Pro Text", Roboto, Helvetica, Arial, sans-serif;
   background:
