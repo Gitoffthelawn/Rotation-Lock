@@ -31,6 +31,11 @@ let sensors = [];
 const FAVORITES_KEY = "rotation-lock.favorite-sensors";
 let favoriteSensors = new Set(JSON.parse(localStorage.getItem(FAVORITES_KEY) || "[]"));
 
+// Pause all rAF loops + CSS animations when the window is hidden (minimized to tray).
+// Without this the WebView2 GPU process keeps the compositor running at ~100% of one core.
+// Default to hidden — Rust pushes the real state (or invoke confirms it) once we're up.
+let pageVisible = false;
+
 // ---- State machine ----
 const STATE = { UNLOCKED: "unlocked", LOCKING: "locking", LOCKED: "locked", UNLOCKING: "unlocking" };
 let uiState = STATE.UNLOCKED;
@@ -108,6 +113,7 @@ function buildLiquidPath(level, pA, pB, amp) {
 }
 
 function tickLiquid(t) {
+  if (!pageVisible) return;
   const dt = liquidLastT ? Math.min(0.05, (t - liquidLastT) / 1000) : 0.016;
   liquidLastT = t;
   liquidPhaseA += dt * 1.6;
@@ -121,7 +127,7 @@ function tickLiquid(t) {
   els.fillPath.setAttribute("d", buildLiquidPath(liquidLevel, liquidPhaseA, liquidPhaseB, amp));
   requestAnimationFrame(tickLiquid);
 }
-requestAnimationFrame(tickLiquid);
+if (pageVisible) requestAnimationFrame(tickLiquid);
 
 // Tween fill level over duration. The liquid loop renders waves on top.
 function animateFill(from, to, durationMs) {
@@ -432,12 +438,44 @@ class SkyScene {
 const sky = new SkyScene(els.sky);
 let _skyLastT = 0;
 function _skyTick(t) {
+  if (!pageVisible) return;
   const dt = _skyLastT ? Math.min(0.05, (t - _skyLastT) / 1000) : 0.016;
   _skyLastT = t;
   sky.draw(dt);
   requestAnimationFrame(_skyTick);
 }
-requestAnimationFrame(_skyTick);
+if (pageVisible) requestAnimationFrame(_skyTick);
+
+// ---- Visibility gating ----
+// When the window is minimized to tray, stop rAF loops + add `app-hidden`
+// to <body> so CSS keyframes pause. Without this WebView2's compositor keeps
+// burning ~100% of one core. WebView2 doesn't reliably fire visibilitychange
+// when its host window is hidden via Win32 SW_HIDE, so Rust drives this
+// explicitly via webview.eval() in cmd_hide_window / show_main_window.
+function setHiddenState(hidden) {
+  const wasVisible = pageVisible;
+  pageVisible = !hidden;
+  document.body.classList.toggle("app-hidden", hidden);
+  if (pageVisible) {
+    if (!wasVisible) {
+      liquidLastT = 0;
+      _skyLastT = 0;
+      requestAnimationFrame(tickLiquid);
+      requestAnimationFrame(_skyTick);
+    }
+    twinkles.start();
+  } else {
+    twinkles.stop();
+  }
+}
+window.__rotationLockSetHidden = setHiddenState;
+// Authoritative state from Rust at startup; subsequent transitions are pushed
+// via webview.eval in cmd_hide_window / show_main_window. We deliberately ignore
+// document.hidden because WebView2 doesn't update it when the host window is
+// hidden via Win32 SW_HIDE.
+invoke("cmd_is_window_visible")
+  .then((visible) => setHiddenState(!visible))
+  .catch(() => setHiddenState(false));
 
 // ---- Corner shine scheduler ----
 let cornerShineTimer = null;
